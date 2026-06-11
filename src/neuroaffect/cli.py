@@ -64,11 +64,18 @@ def _analyze_image(args: argparse.Namespace) -> int:
 def _analyze_video(args: argparse.Namespace) -> int:
     try:
         timeline = analyze_video(
-            args.image, sample_fps=args.fps, min_score=args.min_score
+            args.image,
+            sample_fps=args.fps,
+            min_score=args.min_score,
+            annotate_path=args.annotate,
+            window_seconds=args.window,
         )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+
+    if args.annotate:
+        print(f"Wrote annotated video -> {args.annotate}", file=sys.stderr)
 
     summary = aggregate_timeline(
         timeline, window_seconds=args.window, hop_seconds=args.hop
@@ -164,6 +171,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_analyze.add_argument(
         "--plot", help="[video] output path for the timeline PNG"
+    )
+    p_analyze.add_argument(
+        "--annotate",
+        help="[video] also write an annotated video (boxes + affect + readout) "
+        "to this path",
     )
     p_analyze.set_defaults(func=_cmd_analyze)
 

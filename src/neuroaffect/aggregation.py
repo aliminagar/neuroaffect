@@ -221,6 +221,86 @@ def _mean_scores(frames: list[FrameAffect]) -> dict[str, float]:
     }
 
 
+# Per-label colours (BGR) for the annotated video overlay.
+_LABEL_BGR = {
+    "happy": (60, 200, 60),
+    "surprise": (0, 200, 230),
+    "neutral": (190, 190, 190),
+    "fear": (200, 60, 200),
+    "disgust": (90, 170, 60),
+    "angry": (50, 50, 230),
+    "sad": (210, 140, 40),
+}
+
+
+def _running_readout(
+    frames: list[FrameAffect], t: float, window_seconds: float
+) -> tuple[str, float]:
+    """Smoothed (dominant, mean valence) over recent face frames in the window."""
+    recent = [f for f in frames if f.scores is not None and t - window_seconds <= f.time <= t]
+    if not recent:
+        return "none", 0.0
+    counts = Counter(f.dominant for f in recent)
+    means = _mean_scores(recent)
+    dominant = max(counts, key=lambda lbl: (counts[lbl], means.get(lbl, 0.0)))
+    return dominant, mean([valence_of(f.scores) for f in recent])
+
+
+def _draw_overlay(frame, *, box, label, score, run_dom, run_val, t) -> None:
+    """Draw face box, affect label, and a running affect/valence readout (in place)."""
+    import cv2
+
+    h, w = frame.shape[:2]
+
+    if box is not None:
+        color = _LABEL_BGR.get(label, (60, 200, 60))
+        cv2.rectangle(frame, (box.x, box.y), (box.x + box.width, box.y + box.height), color, 2)
+        tag = f"{label} {score:.2f}"
+        (tw, th), _ = cv2.getTextSize(tag, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 1)
+        ty = max(box.y, th + 5)
+        cv2.rectangle(frame, (box.x, ty - th - 5), (box.x + tw + 6, ty), color, -1)
+        cv2.putText(frame, tag, (box.x + 3, ty - 4), cv2.FONT_HERSHEY_SIMPLEX,
+                    0.55, (0, 0, 0), 1, cv2.LINE_AA)
+
+    # Semi-transparent readout panel (top-left).
+    pw, ph = min(248, w - 10), 96
+    x0, y0 = 8, 8
+    panel = frame.copy()
+    cv2.rectangle(panel, (x0, y0), (x0 + pw, y0 + ph), (25, 25, 25), -1)
+    cv2.addWeighted(panel, 0.55, frame, 0.45, 0, frame)
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    cv2.putText(frame, "neuroaffect", (x0 + 8, y0 + 20), font, 0.5, (230, 230, 230), 1, cv2.LINE_AA)
+    cv2.putText(frame, f"affect: {run_dom.upper()}", (x0 + 8, y0 + 44), font, 0.55,
+                _LABEL_BGR.get(run_dom, (230, 230, 230)), 2, cv2.LINE_AA)
+    cv2.putText(frame, f"valence {run_val:+.2f}", (x0 + 8, y0 + 66), font, 0.5,
+                (230, 230, 230), 1, cv2.LINE_AA)
+    cv2.putText(frame, f"t={t:4.1f}s", (x0 + pw - 70, y0 + 20), font, 0.45,
+                (180, 180, 180), 1, cv2.LINE_AA)
+
+    # Valence bar: filled from centre, green right (+) / red left (-).
+    bx0, bx1, by = x0 + 8, x0 + pw - 8, y0 + 82
+    cx = (bx0 + bx1) // 2
+    cv2.rectangle(frame, (bx0, by), (bx1, by + 8), (70, 70, 70), -1)
+    end = int(cx + (bx1 - cx) * max(-1.0, min(1.0, run_val)))
+    bar_color = (60, 200, 60) if run_val >= 0 else (50, 50, 230)
+    cv2.rectangle(frame, (min(cx, end), by), (max(cx, end), by + 8), bar_color, -1)
+    cv2.line(frame, (cx, by - 2), (cx, by + 10), (230, 230, 230), 1)
+
+
+def _open_video_writer(path: str, fps: float, size: tuple[int, int]):
+    """Open an mp4v VideoWriter; raise a clear error if the codec is unavailable."""
+    import cv2
+
+    writer = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*"mp4v"), max(fps, 1.0), size)
+    if not writer.isOpened():
+        writer.release()
+        raise ValueError(
+            f"could not open a VideoWriter for {path!r}; try an '.avi' extension"
+        )
+    return writer
+
+
 def analyze_video(
     path: str,
     *,
@@ -228,6 +308,8 @@ def analyze_video(
     min_score: float = 0.5,
     temperature: float = 1.0,
     max_seconds: float | None = None,
+    annotate_path: str | None = None,
+    window_seconds: float = 3.0,
 ) -> AffectTimeline:
     """Run detect -> classify across a video, sampling at ``sample_fps``.
 
@@ -235,6 +317,12 @@ def analyze_video(
     single-subject assumption appropriate for affect tracking). Sampling well
     below the native frame rate keeps this CPU-friendly; the rolling-window
     aggregation downstream recovers a smooth signal from the sparse samples.
+
+    If ``annotate_path`` is given, an annotated MP4 is written (one frame per
+    sampled frame, at ``sample_fps`` so playback is real-time) showing the face
+    box, predicted affect + score, and a running affect/valence readout smoothed
+    over ``window_seconds``. This reuses the single inference pass — no extra
+    model calls — so it stays CPU-feasible.
     """
     import cv2
 
@@ -245,6 +333,7 @@ def analyze_video(
     if not cap.isOpened():
         raise ValueError(f"could not open video: {path}")
 
+    writer = None
     try:
         native_fps = cap.get(cv2.CAP_PROP_FPS)
         if not native_fps or native_fps <= 0 or math.isnan(native_fps):
@@ -275,10 +364,29 @@ def analyze_video(
                         )
                     )
                 else:
+                    pred = None
                     frames.append(FrameAffect(time=t, scores=None, dominant=None))
+
+                if annotate_path is not None:
+                    if writer is None:
+                        h, w = frame.shape[:2]
+                        writer = _open_video_writer(annotate_path, sample_fps, (w, h))
+                    run_dom, run_val = _running_readout(frames, t, window_seconds)
+                    _draw_overlay(
+                        frame,
+                        box=boxes[0] if boxes else None,
+                        label=pred.label if pred else "",
+                        score=boxes[0].score if boxes else 0.0,
+                        run_dom=run_dom,
+                        run_val=run_val,
+                        t=t,
+                    )
+                    writer.write(frame)
             idx += 1
     finally:
         cap.release()
+        if writer is not None:
+            writer.release()
 
     duration = read / native_fps if native_fps else 0.0
     return AffectTimeline(

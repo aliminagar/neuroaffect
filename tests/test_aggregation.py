@@ -5,6 +5,8 @@ import pytest
 from neuroaffect.aggregation import (
     AffectTimeline,
     FrameAffect,
+    _draw_overlay,
+    _running_readout,
     aggregate,
     aggregate_timeline,
     analyze_video,
@@ -164,6 +166,53 @@ def test_plot_timeline_raises_without_faces(tmp_path):
         plot_timeline(timeline, summary, str(tmp_path / "x.png"))
 
 
+# --- annotation overlay helpers --------------------------------------------
+
+
+def test_running_readout_uses_only_recent_window():
+    frames = [
+        _frame(0.0, "happy"),
+        _frame(0.5, "happy"),
+        _frame(1.5, "sad"),
+        _frame(2.0, "sad"),
+    ]
+    # window covers [1.0, 2.0] -> only the two 'sad' frames count.
+    dom, val = _running_readout(frames, t=2.0, window_seconds=1.0)
+    assert dom == "sad"
+    assert val == pytest.approx(-1.0)
+
+
+def test_running_readout_no_recent_faces():
+    frames = [FrameAffect(time=0.0, scores=None, dominant=None)]
+    assert _running_readout(frames, t=5.0, window_seconds=2.0) == ("none", 0.0)
+
+
+def test_draw_overlay_modifies_frame():
+    import numpy as np
+
+    frame = np.zeros((120, 120, 3), dtype=np.uint8)
+    _draw_overlay(
+        frame,
+        box=BoundingBox(20, 20, 40, 40),
+        label="happy",
+        score=0.9,
+        run_dom="happy",
+        run_val=0.5,
+        t=1.0,
+    )
+    assert frame.sum() > 0  # something was drawn
+
+
+def test_draw_overlay_without_box():
+    import numpy as np
+
+    frame = np.zeros((120, 120, 3), dtype=np.uint8)
+    _draw_overlay(
+        frame, box=None, label="", score=0.0, run_dom="none", run_val=0.0, t=0.0
+    )
+    assert frame.sum() > 0  # readout panel still drawn
+
+
 # --- end-to-end video decode (needs cv2; detection needs mediapipe) --------
 
 
@@ -188,9 +237,17 @@ def test_analyze_video_on_faceless_clip(tmp_path):
         writer.write(np.full((96, 96, 3), 96, dtype=np.uint8))
     writer.release()
 
-    timeline = analyze_video(str(path), sample_fps=5.0)
+    annotated = tmp_path / "gray.annotated.mp4"
+    timeline = analyze_video(str(path), sample_fps=5.0, annotate_path=str(annotated))
     assert len(timeline.frames) > 0
     assert timeline.face_frames == []  # solid gray -> no faces
+
+    # The annotated video was written and is a readable clip with frames.
+    assert annotated.exists() and annotated.stat().st_size > 0
+    cap = cv2.VideoCapture(str(annotated))
+    assert cap.isOpened()
+    assert cap.get(cv2.CAP_PROP_FRAME_COUNT) > 0
+    cap.release()
 
     summary = aggregate_timeline(timeline)
     assert summary.dominant_label == "none"
