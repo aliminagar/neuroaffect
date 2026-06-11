@@ -71,8 +71,10 @@ split (`--limit 1000`), classifier `dima806/facial_emotions_image_detection`:
 
 Per-class F1: disgust 1.00 · happy 0.93 · surprise 0.91 · angry 0.86 ·
 neutral 0.85 · fear 0.79 · sad 0.79. The confusion matrix
-([`data/fer2013_confusion.png`](../data/fer2013_confusion.png)) shows a strong
+([assets/confusion_matrix.png](assets/confusion_matrix.png)) shows a strong
 diagonal with the usual FER confusions (fear↔sad, neutral→sad).
+
+![confusion matrix](assets/confusion_matrix.png)
 
 (Reproduce with `python -m neuroaffect.cli evaluate --dataset fer2013 --limit 1000`.
 Exact figures shift slightly with `--limit`; the full split will differ a little.)

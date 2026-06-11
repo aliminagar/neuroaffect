@@ -25,19 +25,25 @@ required.
   <sub>Annotated output: face box, predicted affect + confidence, and a running smoothed affect/valence readout.</sub>
 </p>
 
-One pass over a short clip produces that **annotated video** and a **timeline
-plot** with a per-window dominant-affect band. (If the GIF above doesn't play,
-here's a still frame and the full timeline:)
+One pass over a short clip produces that **annotated video** plus a **timeline
+plot** with a per-window dominant-affect band. Representative frames across the
+clip (the box label is the *per-frame* prediction; the panel's affect/valence
+readout is *smoothed* over the rolling window — note the angry frame still reads
+SAD while the window catches up):
 
-| Annotated frame (still fallback) | Affect timeline |
-| --- | --- |
-| ![annotated frame](docs/assets/annotated_frame.png) | ![timeline](docs/assets/timeline.png) |
+| happy | sad | angry |
+| --- | --- | --- |
+| ![happy frame](docs/assets/frame_happy.jpg) | ![sad frame](docs/assets/frame_sad.jpg) | ![angry frame](docs/assets/frame_angry.jpg) |
 
-The timeline above is a deliberately *labile* demo clip (it cross-fades distinct
-public-domain faces: happy → neutral → sad → angry → happy). Variability ≈
-**0.65** on a 0–1 scale. Note the noisy "angry" stretch where the raw per-frame
-`angry` probability bounces between ~0.2 and ~0.7 — exactly the frame-level
-noise the rolling window is there to smooth.
+Affect timeline for the whole clip:
+
+![affect timeline](docs/assets/timeline.png)
+
+This is a deliberately *labile* demo clip (it cross-fades distinct public-domain
+faces: happy → neutral → sad → angry → happy). Variability ≈ **0.69** on a 0–1
+scale. Note the noisy "angry" stretch where the raw per-frame `angry`
+probability bounces between ~0.2 and ~0.7 — exactly the frame-level noise the
+rolling window is there to smooth.
 
 ```powershell
 # Reproduce the demo (no input video needed — it synthesizes one):
@@ -47,9 +53,24 @@ python -m neuroaffect.cli analyze data/sample_clip.mp4 \
     --annotate data/sample_clip.annotated.mp4
 ```
 
+### On a single image
+
+Detect + classify a still with `scripts/draw_faces.py` (green box + affect label):
+
+<p align="center">
+  <img src="docs/assets/detection_demo.jpg" alt="detection + classification on a still image" width="320">
+</p>
+
 ---
 
 ## Architecture
+
+![Pipeline architecture](docs/assets/architecture.png)
+
+<sub>Rendered diagram (also available as [SVG](docs/assets/architecture.svg) for slides/PDF). Mermaid source below.</sub>
+
+<details>
+<summary>Mermaid source</summary>
 
 ```mermaid
 flowchart LR
@@ -68,6 +89,8 @@ flowchart LR
     C -. benchmarked by .-> E["4. evaluation<br/>accuracy / macro-F1 / confusion"]
     E --> M["metrics JSON + confusion-matrix PNG"]
 ```
+
+</details>
 
 Each stage hides behind a small typed interface, so any model can be swapped
 without touching the others. Every model and dataset **auto-downloads and
@@ -106,7 +129,7 @@ test split** (`python -m neuroaffect.cli evaluate --dataset fer2013 --limit 1000
 | Metric | Value |
 | --- | --- |
 | Accuracy | **0.862** |
-| Macro-F1 | **0.877** |
+| Macro-F1 | **0.876** |
 | Samples | 1,000 of 7,178 |
 
 ![confusion matrix](docs/assets/confusion_matrix.png)
