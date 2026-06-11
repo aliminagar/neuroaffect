@@ -167,6 +167,38 @@ than quoting the inflated figure as a win — is the intended demonstration of
 evaluation rigor. A trustworthy estimate needs a test set the model demonstrably
 never saw. Details: [docs/evaluation.md](docs/evaluation.md).
 
+## Design decisions
+A few deliberate engineering choices, and the reasoning behind each:
+
+Typed interfaces between stages → any detector/classifier is swappable in
+one module; pure logic is unit-testable with no models or network.
+Pretrained model, not trained from scratch → reproducible from a
+pip install; fine-tuning is a one-line upgrade (point an env var at a local
+checkpoint) rather than a rewrite.
+FER-2013 over RAF-DB for evaluation → RAF-DB is academic-license-only and
+can't be auto-downloaded; FER-2013 enables a reproducible, no-login benchmark.
+Two variability metrics, not one → entropy captures how many states;
+valence captures how far and how fast the swings are. Entropy alone treats
+happy↔surprise the same as happy↔sad — valence preserves the magnitude.
+Report the inflated number with a caveat, not silence → catching and
+documenting the leakage is more valuable than a clean-looking but misleading
+figure.
+
+Roadmap
+
+A clean generalization estimate on a held-out set the model never saw
+(licensed dataset or a controlled fine-tune with an owned train/test split).
+Throughput: batch the classifier and quantize/distill the ViT.
+Fitted calibration: wire a validation set into the existing temperature hook.
+
+Tests
+bashpytest                          # full suite (integration tests download models)
+pytest -m "not integration"     # fast, offline: pure logic only
+The suite separates pure-logic unit tests (entropy, valence, metrics,
+box-clamping, label mapping — no models or network) from integration tests
+that exercise the real models and datasets, so most of it runs offline in
+seconds.
+
 ## Quickstart
 
 Requires Python **3.11+** (developed on 3.12). First run downloads the models
@@ -253,7 +285,20 @@ tests/             unit + integration tests mirroring src/
 docs/              per-stage rationale + assets for this README
 data/              inputs/outputs/datasets/model cache (gitignored)
 ```
+About the author
+Alireza Minagar, MD, MBA, MS (Bioinformatics), MS (Software Engineering) — AI/ML software engineer with a clinical research
+background. Formerly a professor and neurologist specializing in multiple
+sclerosis and neuro-immunology (290+ peer-reviewed publications), now building
+machine-learning systems with a focus on healthcare and the life sciences. That
+dual background is the lens behind this project: the pipeline is engineered like
+production software, while the affect-variability metric and the insistence on
+honest evaluation come from years of clinical-research discipline — being precise
+about what a number actually measures, and where a metric stops and a diagnosis
+would begin.
 
+🔗 GitHub: github.com/aliminagar
+💼 LinkedIn: www.linkedin.com/in/alireza-minagar-ai
+✉️ Contact: aminagar@gmail.com
 ## License
 
 Code: **MIT** (portfolio use). Third-party components keep their own licenses —
