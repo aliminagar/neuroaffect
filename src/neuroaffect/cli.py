@@ -86,13 +86,54 @@ def _analyze_video(args: argparse.Namespace) -> int:
 
 
 def _cmd_evaluate(args: argparse.Namespace) -> int:
+    if args.dataset:
+        return _evaluate_dataset(args)
+
+    if not (args.preds and args.truth):
+        print(
+            "error: provide PREDS and TRUTH files, or use --dataset",
+            file=sys.stderr,
+        )
+        return 2
+
     with open(args.preds, encoding="utf-8") as f:
         y_pred = json.load(f)
     with open(args.truth, encoding="utf-8") as f:
         y_true = json.load(f)
 
     result = evaluate(y_true, y_pred)
-    print(json.dumps(result.__dict__, indent=2))
+    print(json.dumps(_round_floats(dataclasses.asdict(result)), indent=2))
+    return 0
+
+
+def _evaluate_dataset(args: argparse.Namespace) -> int:
+    from neuroaffect.evaluate import evaluate_dataset, plot_confusion_matrix
+
+    if args.limit is None:
+        print(
+            "Evaluating on the FULL test split — this may take a while on CPU. "
+            "Use --limit N for a faster representative sample.",
+            file=sys.stderr,
+        )
+    result, info = evaluate_dataset(args.dataset, limit=args.limit)
+
+    confusion_out = args.confusion_out or f"data/{args.dataset}_confusion.png"
+    plot_confusion_matrix(result, confusion_out)
+    print(f"Wrote confusion matrix -> {confusion_out}", file=sys.stderr)
+
+    payload = {**info, **_round_floats(dataclasses.asdict(result))}
+    metrics_out = args.metrics_out or f"data/{args.dataset}_metrics.json"
+    with open(metrics_out, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+    print(f"Wrote metrics JSON -> {metrics_out}", file=sys.stderr)
+
+    print(
+        f"\n{args.dataset}: accuracy={result.accuracy:.4f}  "
+        f"macro-F1={result.macro_f1:.4f}  "
+        f"(n={info['samples_used']} of {info['total_available']})",
+        file=sys.stderr,
+    )
+    print(json.dumps(payload, indent=2))
     return 0
 
 
@@ -126,9 +167,33 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_analyze.set_defaults(func=_cmd_analyze)
 
-    p_eval = sub.add_parser("evaluate", help="score predictions vs. ground truth")
-    p_eval.add_argument("preds", help="JSON file: list of predicted labels")
-    p_eval.add_argument("truth", help="JSON file: list of ground-truth labels")
+    p_eval = sub.add_parser(
+        "evaluate",
+        help="score predictions vs. ground truth, or benchmark on a dataset",
+    )
+    p_eval.add_argument(
+        "preds", nargs="?", help="JSON file: list of predicted labels"
+    )
+    p_eval.add_argument(
+        "truth", nargs="?", help="JSON file: list of ground-truth labels"
+    )
+    p_eval.add_argument(
+        "--dataset",
+        choices=["fer2013"],
+        help="benchmark the Stage 2 classifier on a labelled test set",
+    )
+    p_eval.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="[dataset] evaluate on N representative samples (CPU-friendly)",
+    )
+    p_eval.add_argument(
+        "--metrics-out", help="[dataset] output path for the metrics JSON"
+    )
+    p_eval.add_argument(
+        "--confusion-out", help="[dataset] output path for the confusion-matrix PNG"
+    )
     p_eval.set_defaults(func=_cmd_evaluate)
 
     return parser

@@ -17,5 +17,10 @@ torch>=2.2
 # Temporal aggregation (Stage 3) — timeline plotting. See docs/aggregation.md.
 matplotlib>=3.7,<4
 
+# Evaluation (Stage 4) — auto-download/cache the FER-2013 test set from the
+# HuggingFace Hub. See docs/evaluation.md. (Ships with transformers, pinned here
+# because datasets.py imports it directly.)
+huggingface-hub>=0.20
+
 # Dev / test (install with: pip install -r requirements.txt)
 pytest>=8.0,<9.0
