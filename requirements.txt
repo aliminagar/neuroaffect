@@ -14,5 +14,8 @@ mediapipe>=0.10.9,<0.11
 transformers>=4.40,<5
 torch>=2.2
 
+# Temporal aggregation (Stage 3) — timeline plotting. See docs/aggregation.md.
+matplotlib>=3.7,<4
+
 # Dev / test (install with: pip install -r requirements.txt)
 pytest>=8.0,<9.0
