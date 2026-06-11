@@ -8,14 +8,31 @@ aggregates per-frame predictions into a smoothed timeline with a principled
 labeled test set. Built end-to-end with off-the-shelf pretrained models, no GPU
 required.
 
-> ⚠️ **Not a medical or diagnostic device.** This is research / portfolio
-> software. Facial-expression recognition is noisy and culturally biased, the
-> bundled model has a known data-contamination issue (see
-> [Results](#results-honest-fer-2013-numbers)), and "affect variability" here is
-> a descriptive signal-processing metric — **not** a clinical assessment. Do not
-> use it to make decisions about real people. See [Limitations](#limitations)
-> and [Disclaimer](#disclaimer).
+⚠️ Not a medical or diagnostic device. This is research / portfolio
+software. Facial-expression recognition is noisy and culturally biased, the
+bundled model has a known data-contamination issue (see
+Results), and "affect variability" here is
+a descriptive signal-processing metric — not a clinical assessment. Do not
+use it to make decisions about real people. See Limitations
+and Disclaimer.
 
+📍 Repository: github.com/aliminagar/neuroaffect
+
+✨ Highlights
+
+A temporal metric, not just a classifier. Beyond "what emotion is on this
+face," it quantifies how affect moves over time — steady (flat) vs. swinging
+(labile) — borrowing a concept from the clinical mental-status exam and turning
+it into a measurable signal.
+Honest evaluation that caught real data leakage. The benchmark harness
+surfaced train/test contamination in the pretrained model (an implausible
+86% on FER-2013 vs. ~73% state-of-the-art) and reports it transparently
+instead of quoting the inflated number — a deliberate demonstration of
+evaluation rigor.
+Production-shaped engineering. Four stages behind small typed interfaces
+(swap any model without touching the others), 53 tests split into fast offline
+units + gated integration tests, auto-downloading/caching models, and a clean
+staged commit history.
 ---
 
 ## Demo
