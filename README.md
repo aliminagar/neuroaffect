@@ -12,7 +12,7 @@ required.
 software. Facial-expression recognition is noisy and culturally biased, the
 bundled model has a known data-contamination issue (see
 Results), and "affect variability" here is
-a descriptive signal-processing metric — not a clinical assessment. Do not
+a descriptive signal-processing metric — not a clinical assessment. Do not 
 use it to make decisions about real people. See Limitations
 and Disclaimer.
 
