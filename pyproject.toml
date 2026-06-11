@@ -12,6 +12,7 @@ dependencies = [
     "numpy>=1.26,<2.1",
     "opencv-python>=4.9,<5.0",
     "Pillow>=10.0,<11.0",
+    "mediapipe>=0.10.9,<0.11",
 ]
 
 [project.optional-dependencies]
@@ -25,3 +26,6 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "integration: end-to-end tests that need the mediapipe detector (and, on first run, network to fetch the model)",
+]
