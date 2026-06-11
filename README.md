@@ -16,7 +16,7 @@ a descriptive signal-processing metric — not a clinical assessment. Do not
 use it to make decisions about real people. See Limitations
 and Disclaimer.
 
-📍 Repository: github.com/aliminagar/neuroaffect
+📍 Repository: [github.com/aliminagar/neuroaffect](https://github.com/aliminagar/neuroaffect/)
 
 ✨ Highlights
 
