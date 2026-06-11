@@ -237,24 +237,12 @@ python scripts/draw_faces.py            # detect + classify a still → boxes + 
 python scripts/make_sample_video.py     # synthesize a labile sample clip
 ```
 
-## Tests
-
-```powershell
-pytest                          # full suite (integration tests download models)
-pytest -m "not integration"     # fast, offline: pure logic only
-```
-
-The suite separates **pure-logic unit tests** (entropy, valence, metrics,
-box-clamping, label mapping — no models or network) from **integration tests**
-that exercise the real models and datasets, so most of it runs offline in
-seconds.
-
 ## Limitations
 
 - **Model data contamination.** The Stage 2 model was likely trained on
   FER-2013, so the benchmark over-states real-world accuracy (see above).
 - **FER is inherently noisy and biased.** Facial-expression → emotion mapping is
-  contested; models trial-trained on posed Western datasets generalize poorly
+  contested; models trained on posed Western datasets generalize poorly
   across cultures, lighting, occlusion, and demographics.
 - **"Affect variability" is descriptive, not clinical.** The valence lexicon is
   a fixed modeling choice; the metric quantifies output variation, not a
